@@ -1,0 +1,79 @@
+//Gets the current date
+function checkCurrentDate() {
+  var currentDate = Utilities.formatDate(new Date(), "EST", "MM/dd/yyyy").split("/");
+  Logger.log("Current date is: %s", currentDate);
+  checkRecordedDates(currentDate);
+}
+
+//Gathers Date cells and email cells and iterates through them
+function checkRecordedDates(currentDate) {
+  var ranges = SpreadsheetApp.getActiveSheet().getRangeList(["B2:B", "C2:C"]).getRanges();
+  var dates = ranges[0].getValues();
+  var emails = ranges[1].getValues();
+  var shouldSendEmail = false;
+  for (var i=0; i<dates.length; i++) {
+    var date = dates[i][0]; //using getValues provides a nested array
+    if (date == "") { //ignore empty cells
+      continue;
+    }
+    var splitDate = date.split(" ")[0].split("/"); //Removes any words after the date and gives an array of mm, dd, yyyy
+    Logger.log(splitDate);
+    if (splitDate[0] == currentDate[0]) { //If the months of the dates are the same
+      shouldSendEmail = compareDates(currentDate[1], splitDate[1]);
+    }
+    else {
+      shouldSendEmail = transposeDates(splitDate, currentDate); //Transpose dates if months are different
+    }
+    if (shouldSendEmail) {
+      sendEmail(emails[i][0], splitDate);
+    }
+  }
+}
+
+function compareDates(currentDay, registeredDay) {
+  var daysRequirement = 3;  //How many days before they registered should the email be sent
+  if (registeredDay - currentDay == daysRequirement) {
+    return true;
+  }
+  else {
+    Logger.log("Registered Date is not the specified number of days after the current date.");
+    return false;
+  }
+}
+
+function sendEmail(email, date) {
+  Logger.log("Sending email to %s!", email);
+  var subject = "ENGL: 211C Workshop Reminder"
+  var message = `This is a reminder that your essay workshop date, ${date[0]}/${date[1]}, is in three days. You must submit your draft to me (egolllihe@odu.edu) via email within 24 hours to be eligible for workshop (you can reply to this email). I will not accept late drafts. If you would like to include a list of revisions you want the class to focus on, you should attach that to the email as well. For more workshop instructions, check out the “Prompts” tab on Blackboard. <br><br> If you know that you will be unable to make your workshop date, tell me now. If you do not submit your essay within 24 hours of receiving this email, or you do not show up for your workshop date, you will be in danger of failing the course. <br><br>-Prof. Golliher`
+  MailApp.sendEmail(email, subject, '', {
+    htmlBody: message //html ensures proper formatting for email
+  });
+}
+
+//Make sure no errors when comparing days in two different months.
+//NOTE: This was only intended to be used in 2022 til about May. It needs updating if used after that period of time.
+function transposeDates(registeredDate, currentDate) {
+  if (currentDate[0] > registeredDate[0] || registeredDate[0] - currentDate[0] != 1) {
+    Logger.log("Registered date is either before the current date or more than a month after.");
+    return false;
+  }
+  //January, March, May (31 day months)
+  if (currentDate[0] == 1 || currentDate[0] == 3 || currentDate[0] == 5) {
+    var transposedDay = +registeredDate[1] + 31;
+    return compareDates(currentDate[1], transposedDay);
+  }
+  //February (28 days)
+  else if (currentDate[0] == 2) {
+    var transposedDay = +registeredDate[1] + 28;
+    return compareDates(currentDate[1], transposedDay);
+  }
+  //April (30 days)
+  else if (currentDate[0] == 4) {
+    var transposedDay = +registeredDate[1] + 30;
+    return compareDates(currentDate[1], transposedDay);
+  }
+  else {
+    Logger.log("Error: You are using this script after its inteded use period. It needs to be updated!");
+    return false;
+  }
+}
